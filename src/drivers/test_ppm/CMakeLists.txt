@@ -33,13 +33,12 @@
 px4_add_module(
 	MODULE drivers__test_ppm
 	MAIN test_ppm
-	STACK 1200
+	STACK_MAIN 1200
 	COMPILE_FLAGS
 		-Weffc++
-		-Os
 	SRCS
 		test_ppm.cpp
 	DEPENDS
 		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :

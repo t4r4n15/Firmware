@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015, 2016 Airmind Development Team. All rights reserved.
+ *   Copyright (c) 2015, 2016 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -703,7 +703,7 @@ int MPU6500::reset()
 
 	while (--tries != 0) {
 		irqstate_t state;
-		state = irqsave();
+		state = px4_enter_critical_section();
 
 		write_reg(MPUREG_PWR_MGMT_1, BIT_H_RESET);
 		up_udelay(10000);
@@ -716,7 +716,7 @@ int MPU6500::reset()
 
 		// Disable I2C bus (recommended on datasheet)
 		write_checked_reg(MPUREG_USER_CTRL, BIT_I2C_IF_DIS);
-		irqrestore(state);
+		px4_leave_critical_section(state);
 
 		if (read_reg(MPUREG_PWR_MGMT_1) == MPU_CLK_SEL_PLLGYROZ) {
 			break;
@@ -1292,14 +1292,14 @@ MPU6500::ioctl(struct file *filp, int cmd, unsigned long arg)
 				return -EINVAL;
 			}
 
-			irqstate_t flags = irqsave();
+			irqstate_t flags = px4_enter_critical_section();
 
 			if (!_accel_reports->resize(arg)) {
-				irqrestore(flags);
+				px4_leave_critical_section(flags);
 				return -ENOMEM;
 			}
 
-			irqrestore(flags);
+			px4_leave_critical_section(flags);
 
 			return OK;
 		}
@@ -1377,14 +1377,14 @@ MPU6500::gyro_ioctl(struct file *filp, int cmd, unsigned long arg)
 				return -EINVAL;
 			}
 
-			irqstate_t flags = irqsave();
+			irqstate_t flags = px4_enter_critical_section();
 
 			if (!_gyro_reports->resize(arg)) {
-				irqrestore(flags);
+				px4_leave_critical_section(flags);
 				return -ENOMEM;
 			}
 
-			irqrestore(flags);
+			px4_leave_critical_section(flags);
 
 			return OK;
 		}
@@ -1719,9 +1719,6 @@ MPU6500::measure()
 	report.gyro_z = int16_t_from_bytes(mpu_report.gyro_z);
 
 
-
-
-
 	if (report.accel_x == 0 &&
 	    report.accel_y == 0 &&
 	    report.accel_z == 0 &&
@@ -1749,29 +1746,6 @@ MPU6500::measure()
 		return;
 	}
 
-#if defined(CONFIG_ARCH_BOARD_MINDPX_V2)
-	/*
-	 * Swap axes and negate z
-	 */
-	int16_t accel_xt = report.accel_y;
-	int16_t accel_yt = report.accel_x;
-	int16_t accel_zt = ((report.accel_z == -32768) ? 32767 : -report.accel_z);
-
-	int16_t gyro_xt = report.gyro_y;
-	int16_t gyro_yt = report.gyro_x;
-	int16_t gyro_zt = ((report.gyro_z == -32768) ? 32767 : -report.gyro_z);
-
-	/*
-	 * Apply the swap
-	 */
-	report.accel_x = accel_xt;
-	report.accel_y = accel_yt;
-	report.accel_z = accel_zt;
-	report.gyro_x = gyro_xt;
-	report.gyro_y = gyro_yt;
-	report.gyro_z = gyro_zt;
-
-#else
 	/*
 	 * Swap axes and negate y
 	 */
@@ -1788,7 +1762,7 @@ MPU6500::measure()
 	report.accel_y = accel_yt;
 	report.gyro_x = gyro_xt;
 	report.gyro_y = gyro_yt;
-#endif
+
 	/*
 	 * Report buffers.
 	 */

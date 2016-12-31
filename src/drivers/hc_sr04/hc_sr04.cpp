@@ -40,6 +40,7 @@
 #include <nuttx/config.h>
 
 #include <drivers/device/device.h>
+#include <px4_defines.h>
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -87,12 +88,6 @@
 
 #define SR04_CONVERSION_INTERVAL 	100000 /* 100ms for one sonar */
 
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
 
 #ifndef CONFIG_SCHED_WORKQUEUE
 # error This requires CONFIG_SCHED_WORKQUEUE.
@@ -269,18 +264,18 @@ HC_SR04::~HC_SR04()
 int
 HC_SR04::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do I2C init (and probe) first */
 	if (CDev::init() != OK) {
-		return ERROR;
+		return PX4_ERROR;
 	}
 
 	/* allocate basic report buffers */
 	_reports = new ringbuffer::RingBuffer(2, sizeof(distance_sensor_s));
 
 	if (_reports == nullptr) {
-		return ERROR;
+		return PX4_ERROR;
 	}
 
 	_class_instance = register_class_devname(RANGE_FINDER_BASE_DEVICE_PATH);
@@ -297,9 +292,9 @@ HC_SR04::init()
 
 	/* init echo port : */
 	for (unsigned i = 0; i <= _sonars; i++) {
-		stm32_configgpio(_gpio_tab[i].trig_port);
-		stm32_gpiowrite(_gpio_tab[i].trig_port, false);
-		stm32_configgpio(_gpio_tab[i].echo_port);
+		px4_arch_configgpio(_gpio_tab[i].trig_port);
+		px4_arch_gpiowrite(_gpio_tab[i].trig_port, false);
+		px4_arch_configgpio(_gpio_tab[i].echo_port);
 		_latest_sonar_measurements.push_back(0);
 	}
 
@@ -441,14 +436,14 @@ HC_SR04::ioctl(struct file *filp, int cmd, unsigned long arg)
 				return -EINVAL;
 			}
 
-			irqstate_t flags = irqsave();
+			irqstate_t flags = px4_enter_critical_section();
 
 			if (!_reports->resize(arg)) {
-				irqrestore(flags);
+				px4_leave_critical_section(flags);
 				return -ENOMEM;
 			}
 
-			irqrestore(flags);
+			px4_leave_critical_section(flags);
 
 			return OK;
 		}
@@ -546,11 +541,11 @@ HC_SR04::measure()
 	/*
 	 * Send a plus begin a measurement.
 	 */
-	stm32_gpiowrite(_gpio_tab[_cycle_counter].trig_port, true);
+	px4_arch_gpiowrite(_gpio_tab[_cycle_counter].trig_port, true);
 	usleep(10);  // 10us
-	stm32_gpiowrite(_gpio_tab[_cycle_counter].trig_port, false);
+	px4_arch_gpiowrite(_gpio_tab[_cycle_counter].trig_port, false);
 
-	stm32_gpiosetevent(_gpio_tab[_cycle_counter].echo_port, true, true, false, sonar_isr);
+	px4_arch_gpiosetevent(_gpio_tab[_cycle_counter].echo_port, true, true, false, sonar_isr);
 	_status = 0;
 	ret = OK;
 
@@ -567,7 +562,7 @@ HC_SR04::collect()
 	/* read from the sensor */
 	if (_status != 2) {
 		DEVICE_DEBUG("erro sonar %d ,status=%d", _cycle_counter, _status);
-		stm32_gpiosetevent(_gpio_tab[_cycle_counter].echo_port, true, true, false, nullptr);
+		px4_arch_gpiosetevent(_gpio_tab[_cycle_counter].echo_port, true, true, false, nullptr);
 		perf_end(_sample_perf);
 		return (ret);
 	}
@@ -634,7 +629,7 @@ HC_SR04::collect()
 
 	ret = OK;
 
-	stm32_gpiosetevent(_gpio_tab[_cycle_counter].echo_port, true, true, false, nullptr); /* close interrupt */
+	px4_arch_gpiosetevent(_gpio_tab[_cycle_counter].echo_port, true, true, false, nullptr); /* close interrupt */
 	perf_end(_sample_perf);
 #endif
 	return ret;
@@ -659,12 +654,12 @@ HC_SR04::start()
 
 
 	/* notify about state change */
-	struct subsystem_info_s info = {
-		true,
-		true,
-		true,
-		SUBSYSTEM_TYPE_RANGEFINDER
-	};
+	struct subsystem_info_s info = {};
+	info.present = true;
+	info.enabled = true;
+	info.ok = true;
+	info.subsystem_type = SUBSYSTEM_TYPE_RANGEFINDER;
+
 	static orb_advert_t pub = nullptr;
 
 	if (pub != nullptr) {
@@ -738,12 +733,6 @@ HC_SR04::print_info()
  */
 namespace  hc_sr04
 {
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-const int ERROR = -1;
 
 HC_SR04	*g_dev;
 

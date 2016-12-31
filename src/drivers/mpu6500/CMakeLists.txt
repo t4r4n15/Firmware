@@ -33,13 +33,12 @@
 px4_add_module(
 	MODULE drivers__mpu6500
 	MAIN mpu6500
-	STACK 1200
+	STACK_MAIN 1200
 	COMPILE_FLAGS
 		-Weffc++
-		-Os
 	SRCS
 		mpu6500.cpp
 	DEPENDS
 		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :
